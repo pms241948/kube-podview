@@ -1,0 +1,28 @@
+# Ingress 예시 (nginx ingress controller 기준).
+# SSE(실시간 스트림)와 로그 follow를 위해 버퍼링을 끄고 타임아웃을 늘린다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: podview
+  namespace: podview
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: podview.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: podview
+                port:
+                  number: 80
+  # 사내 TLS 인증서가 있다면:
+  # tls:
+  #   - hosts: [podview.example.com]
+  #     secretName: podview-tls

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: podview
+  namespace: podview
+  labels:
+    app: podview
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: podview
+  template:
+    metadata:
+      labels:
+        app: podview
+    spec:
+      serviceAccountName: podview
+      containers:
+        - name: podview
+          # 사내 레지스트리 주소로 변경하세요
+          image: registry.example.com/k8s-podview:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: AUTH_ENABLED
+              value: "true"
+            # 웹 관리자 설정(클러스터/사용자)을 저장할 Secret의 네임스페이스
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef: { fieldPath: metadata.namespace }
+            # 게이트웨이가 이 인스턴스를 호출할 때 쓰는 토큰 (원격 망 인스턴스에 설정)
+            - name: GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef: { name: podview-auth, key: gateway-token, optional: true }
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef: { name: podview-auth, key: cookie-secret }
+            # Keycloak OIDC (미사용 시 이 블록 삭제)
+            - name: OIDC_ISSUER_URL
+              valueFrom:
+                secretKeyRef: { name: podview-auth, key: issuer-url, optional: true }
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: podview-auth, key: client-id, optional: true }
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: podview-auth, key: client-secret, optional: true }
+            - name: OIDC_REDIRECT_URL
+              valueFrom:
+                secretKeyRef: { name: podview-auth, key: redirect-url, optional: true }
+            # 로컬 ID/PW 사용자 (미사용 시 이 블록 삭제)
+            - name: LOCAL_USERS
+              valueFrom:
+                secretKeyRef: { name: podview-auth, key: local-users, optional: true }
+          readinessProbe:
+            httpGet: { path: /api/healthz, port: 8080 }
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet: { path: /api/healthz, port: 8080 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: podview
+  namespace: podview
+spec:
+  selector:
+    app: podview
+  ports:
+    - port: 80
+      targetPort: 8080

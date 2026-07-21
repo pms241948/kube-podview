@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: podview
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: podview
+  namespace: podview
+---
+# 읽기 전용 권한: Pod/네임스페이스/서비스/노드 조회·감시, 로그, 이벤트, 메트릭
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: podview-readonly
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "services", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: podview-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: podview-readonly
+subjects:
+  - kind: ServiceAccount
+    name: podview
+    namespace: podview
+---
+# 관리자가 웹에서 변경하는 런타임 설정(클러스터 목록·사용자 계정)을
+# 자기 네임스페이스의 podview-settings Secret에 저장하기 위한 권한
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: podview-settings
+  namespace: podview
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["podview-settings"]
+    verbs: ["get", "update"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: podview-settings
+  namespace: podview
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: podview-settings
+subjects:
+  - kind: ServiceAccount
+    name: podview
+    namespace: podview

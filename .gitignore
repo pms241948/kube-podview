@@ -1,0 +1,23 @@
+# Go
+/bin/
+*.exe
+
+# Frontend
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+
+# 환경 설정 (비밀값 포함 가능)
+.env
+.env.local
+
+# 편집기
+.vscode/
+.idea/
+web/tsconfig.tsbuildinfo
+
+# 런타임 설정 저장소 (로컬 개발)
+data/
+
+# 비공개 사내 설치 환경 메모 (공개 저장소에 올리지 않음)
+docs/private-setup.ko.md
