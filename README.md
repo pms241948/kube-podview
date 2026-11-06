@@ -273,6 +273,10 @@ For non-NVIDIA GPUs (AMD ROCm etc.), swap the two queries for the corresponding 
 | `POST /api/namespaces/{ns}/pods/{pod}/analyze` | run Pod AI analysis |
 | `GET·POST /api/admin/ai` `DELETE /api/admin/ai/{name}` `POST /api/admin/ai/active` | AI model management (admin) |
 
+## Security
+
+Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT
