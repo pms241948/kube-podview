@@ -292,10 +292,6 @@ GPU 할당 개수 배지는 Prometheus 없이도 Pod 스펙(limits)에서 읽어
 | `POST /api/namespaces/{ns}/pods/{pod}/analyze` | Pod AI 분석 실행 |
 | `GET·POST /api/admin/ai` `DELETE /api/admin/ai/{name}` `POST /api/admin/ai/active` | AI 모델 관리 (admin) |
 
-## 보안
-
-취약점은 비공개로 신고해 주세요 — [SECURITY.md](SECURITY.md) 참고.
-
 ## 라이선스
 
 MIT
