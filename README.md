@@ -69,7 +69,7 @@ A web service that **visualizes Kubernetes Pod status per namespace in real time
 
 ## Local Development
 
-Requires Go 1.26+, Node 24+.
+Requires Go 1.26.10+, Node 24.22.1+ (security patch releases).
 
 ```bash
 # full build then run (uses current kubeconfig context, auth disabled)
