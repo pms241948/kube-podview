@@ -10,14 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pms241948/CC-K8s-podview/internal/api"
-	"github.com/pms241948/CC-K8s-podview/internal/auth"
-	"github.com/pms241948/CC-K8s-podview/internal/config"
-	"github.com/pms241948/CC-K8s-podview/internal/gateway"
-	"github.com/pms241948/CC-K8s-podview/internal/k8s"
-	"github.com/pms241948/CC-K8s-podview/internal/prom"
-	"github.com/pms241948/CC-K8s-podview/internal/store"
-	"github.com/pms241948/CC-K8s-podview/web"
+	"github.com/pms241948/kube-podview/internal/api"
+	"github.com/pms241948/kube-podview/internal/auth"
+	"github.com/pms241948/kube-podview/internal/config"
+	"github.com/pms241948/kube-podview/internal/gateway"
+	"github.com/pms241948/kube-podview/internal/k8s"
+	"github.com/pms241948/kube-podview/internal/prom"
+	"github.com/pms241948/kube-podview/internal/store"
+	"github.com/pms241948/kube-podview/web"
 	"k8s.io/client-go/kubernetes"
 )
 

@@ -10,10 +10,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/pms241948/CC-K8s-podview/internal/ai"
-	"github.com/pms241948/CC-K8s-podview/internal/i18n"
-	"github.com/pms241948/CC-K8s-podview/internal/k8s"
-	"github.com/pms241948/CC-K8s-podview/internal/store"
+	"github.com/pms241948/kube-podview/internal/ai"
+	"github.com/pms241948/kube-podview/internal/i18n"
+	"github.com/pms241948/kube-podview/internal/k8s"
+	"github.com/pms241948/kube-podview/internal/store"
 )
 
 // handleAIStatus는 프론트엔드에 등록된 모델 목록과 기본 모델을 알려준다.

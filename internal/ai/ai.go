@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pms241948/CC-K8s-podview/internal/i18n"
-	"github.com/pms241948/CC-K8s-podview/internal/store"
+	"github.com/pms241948/kube-podview/internal/i18n"
+	"github.com/pms241948/kube-podview/internal/store"
 )
 
 // 보고서 언어는 화면 언어(요청의 Accept-Language)를 따른다.

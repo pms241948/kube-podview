@@ -40,7 +40,7 @@
 인터넷이 되는 빌드 구간에서:
 
 ```bash
-git clone https://github.com/pms241948/CC-K8s-podview.git && cd CC-K8s-podview
+git clone https://github.com/pms241948/kube-podview.git && cd kube-podview
 make docker IMAGE=k8s-podview TAG=v0.1.0
 
 # 반입용 tar 생성

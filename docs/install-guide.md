@@ -40,7 +40,7 @@ connected **by config (env vars) to what you already have** — no extra images 
 On the internet-connected build box:
 
 ```bash
-git clone https://github.com/pms241948/CC-K8s-podview.git && cd CC-K8s-podview
+git clone https://github.com/pms241948/kube-podview.git && cd kube-podview
 make docker IMAGE=k8s-podview TAG=v0.1.0
 
 # create the transfer tar

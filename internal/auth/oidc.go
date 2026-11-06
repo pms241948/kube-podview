@@ -11,8 +11,8 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/pms241948/CC-K8s-podview/internal/config"
-	"github.com/pms241948/CC-K8s-podview/internal/i18n"
+	"github.com/pms241948/kube-podview/internal/config"
+	"github.com/pms241948/kube-podview/internal/i18n"
 )
 
 // oidcProvider는 Keycloak 연동 상태를 담는다.

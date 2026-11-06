@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/pms241948/CC-K8s-podview/internal/i18n"
-	"github.com/pms241948/CC-K8s-podview/internal/store"
+	"github.com/pms241948/kube-podview/internal/i18n"
+	"github.com/pms241948/kube-podview/internal/store"
 )
 
 // 관리자 API. /api/admin/* 경로는 auth 미들웨어가 admin 역할을 강제한다.

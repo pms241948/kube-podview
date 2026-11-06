@@ -22,9 +22,9 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/pms241948/CC-K8s-podview/internal/config"
-	"github.com/pms241948/CC-K8s-podview/internal/i18n"
-	"github.com/pms241948/CC-K8s-podview/internal/store"
+	"github.com/pms241948/kube-podview/internal/config"
+	"github.com/pms241948/kube-podview/internal/i18n"
+	"github.com/pms241948/kube-podview/internal/store"
 )
 
 const (

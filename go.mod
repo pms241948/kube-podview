@@ -1,4 +1,4 @@
-module github.com/pms241948/CC-K8s-podview
+module github.com/pms241948/kube-podview
 
 go 1.26.5
 

@@ -12,10 +12,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/pms241948/CC-K8s-podview/internal/i18n"
-	"github.com/pms241948/CC-K8s-podview/internal/k8s"
-	"github.com/pms241948/CC-K8s-podview/internal/prom"
-	"github.com/pms241948/CC-K8s-podview/internal/store"
+	"github.com/pms241948/kube-podview/internal/i18n"
+	"github.com/pms241948/kube-podview/internal/k8s"
+	"github.com/pms241948/kube-podview/internal/prom"
+	"github.com/pms241948/kube-podview/internal/store"
 )
 
 // Server는 REST API 핸들러 집합이다.
