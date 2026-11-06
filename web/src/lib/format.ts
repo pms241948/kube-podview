@@ -1,3 +1,5 @@
+import type { TFunc } from './i18n'
+
 export function formatCPU(milli: number): string {
   if (milli >= 1000) return `${(milli / 1000).toFixed(2)} cores`
   return `${milli}m`
@@ -44,11 +46,9 @@ export function problemRecency(problemSince: string): ProblemRecency {
   return 'chronic'
 }
 
-export function problemLabel(problemSince: string): string {
-  const recency = problemRecency(problemSince)
+export function problemLabel(problemSince: string, t: TFunc): string {
   const age = formatAge(problemSince)
-  if (recency === 'chronic') return `만성 · ${age} 경과`
-  return `${age} 전 발생`
+  return t(problemRecency(problemSince) === 'chronic' ? 'recency.chronic' : 'recency.ago', { age })
 }
 
 /** 상태 문자열을 색상 클래스로 매핑한다. */

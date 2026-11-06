@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GPUUsage, IngressSummary, NodeSummary, PodSummary, PodUsage, ServiceSummary, TrafficSnapshot } from '../lib/types'
 import { formatCPU, formatMemory, problemLabel, problemRecency, statusClass } from '../lib/format'
+import { useI18n } from '../lib/i18n'
 
 interface Props {
   pods: PodSummary[]
@@ -11,11 +12,15 @@ interface Props {
   gpuUsage: Map<string, GPUUsage>
   traffic: TrafficSnapshot | null
   problemsOnly: boolean
+  searchQuery?: string // Pod 이름/상태 검색어 — 일치하지 않는 Pod는 흐리게
   layoutKey: string
   onHoverNamespace?: (ns: string | null) => void
   onSelectPod: (pod: PodSummary) => void
   selectedPodKey?: string
 }
+
+// 노드에 아직 배치되지 않은 Pod 그룹의 내부 키 (화면에는 번역된 이름으로 표시)
+const UNASSIGNED = '__unassigned__'
 
 // ── 레이아웃 상수 ──────────────────────────────
 const ING_W = 170
@@ -95,12 +100,14 @@ type Hover =
   | null
 
 /**
- * webernetes 스타일 토폴로지: Ingress → Service → Pod(노드 박스 안) 계층.
+ * 계층형 토폴로지: Ingress → Service → Pod(노드 박스 안).
  * Service→Pod 연결선은 셀렉터 기반 라우팅 경로이고,
  * traffic이 주어지면 Pod↔Pod 실측 플로우(회색 선)와 송수신량 툴팁이 추가된다.
  */
-export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage, traffic, problemsOnly, layoutKey, onHoverNamespace, onSelectPod, selectedPodKey }: Props) {
+export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage, traffic, problemsOnly, searchQuery, layoutKey, onHoverNamespace, onSelectPod, selectedPodKey }: Props) {
+  const { t } = useI18n()
   const [hover, setHover] = useState<Hover>(null)
+  const query = (searchQuery ?? '').trim().toLowerCase()
 
   // ── 노드 박스 드래그/크기 조절 ──────────────────────
   // 사용자가 옮기거나 크기를 바꾼 박스만 기록한다. 폭이 바뀌면 안의 Pod는 자동 재정렬.
@@ -196,10 +203,10 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
   const NODE_X = SVC_COL_X + SVC_W + COL_GAP
 
   const layout = useMemo(() => {
-    // Pod를 노드별로 묶는다. 스케줄 전 Pod는 "(미할당)" 그룹.
+    // Pod를 노드별로 묶는다. 스케줄 전 Pod는 UNASSIGNED 그룹 (표시 이름은 언어별로 번역).
     const byNode = new Map<string, PodSummary[]>()
     for (const p of pods) {
-      const key = p.nodeName || '(미할당)'
+      const key = p.nodeName || UNASSIGNED
       if (!byNode.has(key)) byNode.set(key, [])
       byNode.get(key)!.push(p)
     }
@@ -209,7 +216,7 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
       .map((n) => ({ name: n.name, ready: n.ready, roles: n.roles }))
     for (const name of byNode.keys()) {
       if (!nodeOrder.some((n) => n.name === name)) {
-        nodeOrder.push({ name, ready: true, roles: name === '(미할당)' ? 'pending' : 'worker' })
+        nodeOrder.push({ name, ready: true, roles: name === UNASSIGNED ? 'pending' : 'worker' })
       }
     }
 
@@ -486,7 +493,7 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
   }, [hover, layout])
 
   if (pods.length === 0) {
-    return <div className="empty">표시할 Pod가 없습니다.</div>
+    return <div className="empty">{t('app.noPods')}</div>
   }
 
   const dimSvcEdge = (e: { svcKey: string; podKey: string }) =>
@@ -501,39 +508,37 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
       <div className="topo-legend">
         <span>
           <svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#4d8dff" strokeWidth="1.5" /><circle cx="13" cy="4" r="3" fill="#4d8dff" /></svg>
-          트래픽 라우팅 중
+          {t('topo.routing')}
         </span>
         <span>
           <svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#e05c5c" strokeWidth="1.5" strokeDasharray="4 4" /></svg>
-          트래픽 제외 (Not Ready)
+          {t('topo.excluded')}
         </span>
         {maxCPU > 0 && (
           <span>
             <svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="none" stroke="#4d8dff" strokeWidth="2" strokeDasharray="16 32" /></svg>
-            CPU 사용량 링
+            {t('topo.cpuRing')}
           </span>
         )}
         {gpuUsage.size > 0 && (
           <span>
             <svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="none" stroke="#76b900" strokeWidth="2" strokeDasharray="16 32" /></svg>
-            GPU 사용률 링 (0~100%)
+            {t('topo.gpuRing')}
           </span>
         )}
         {flowEdges.length > 0 && (
           <span>
             <svg width="26" height="8"><path d="M 0 7 Q 13 0, 26 7" fill="none" stroke="#8b96ad" strokeWidth="1.2" /><circle cx="13" cy="3.5" r="2.5" fill="#8b96ad" /></svg>
-            실측 플로우 — 점 속도 = 세기
+            {t('topo.flowLegend')}
           </span>
         )}
         <span className="topo-legend-note">
           {Object.keys(overrides).length > 0 && (
             <button className="link-btn" onClick={resetLayout} style={{ marginRight: 12 }}>
-              배치 초기화
+              {t('topo.resetLayout')}
             </button>
           )}
-          {trafficOn
-            ? '※ 점 속도·개수 = 실측 트래픽 세기, 흐린 선 = 트래픽 없음'
-            : '※ 셀렉터 기반 라우팅 경로이며 실측 트래픽이 아닙니다'}
+          {t(trafficOn ? 'topo.noteMeasured' : 'topo.noteSelector')}
         </span>
       </div>
       <svg width={layout.width} height={layout.height} className="topology">
@@ -545,7 +550,7 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
             onMouseEnter={() => setHover({ type: 'ingEdge', ingKey: e.ingKey, svcKey: e.svcKey })}
             onMouseLeave={() => setHover(null)}
           >
-            <title>{`Ingress ${e.ingKey}\n→ 서비스 ${e.svcKey}`}</title>
+            <title>{t('topo.ingSvc', { ing: e.ingKey, svc: e.svcKey })}</title>
             <path d={e.d} fill="none" stroke="#6f7f9f" strokeWidth={1.5} strokeOpacity={0.5} />
             <circle r={3} fill="#6f7f9f">
               <animateMotion dur="2.4s" repeatCount="indefinite" path={e.d} />
@@ -567,12 +572,10 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
           const baseBegin = (i % 8) * 0.3
           const podRate = podRateMap.get(e.podKey)
           const svcTip = [
-            `서비스 ${e.svcKey}\n→ Pod ${e.podKey}`,
-            e.healthy ? '트래픽 라우팅 중' : 'Not Ready — 트래픽 제외',
+            t('topo.svcPod', { svc: e.svcKey, pod: e.podKey }),
+            t(e.healthy ? 'topo.routing' : 'topo.notReady'),
             podRate
-              ? `수신 ${formatMemory(podRate.rx)}/s · 송신 ${formatMemory(podRate.tx)}/s${
-                  idle ? ' (트래픽 없음)' : ''
-                }`
+              ? t('topo.rxtx', { rx: formatMemory(podRate.rx), tx: formatMemory(podRate.tx) }) + (idle ? t('topo.noTraffic') : '')
               : null,
           ]
             .filter(Boolean)
@@ -621,10 +624,10 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
           const fromRate = podRateMap.get(e.fromKey)
           const toRate = podRateMap.get(e.toKey)
           const flowTip = [
-            `실측 플로우\n${e.fromKey}\n→ ${e.toKey}`,
+            t('topo.flow', { from: e.fromKey, to: e.toKey }),
             `${e.rate.toFixed(2)} ${traffic?.edgeUnit ?? ''}`,
-            fromRate ? `출발 Pod 송신 ${formatMemory(fromRate.tx)}/s` : null,
-            toRate ? `도착 Pod 수신 ${formatMemory(toRate.rx)}/s` : null,
+            fromRate ? t('topo.fromTx', { v: formatMemory(fromRate.tx) }) : null,
+            toRate ? t('topo.toRx', { v: formatMemory(toRate.rx) }) : null,
           ]
             .filter(Boolean)
             .join('\n')
@@ -668,7 +671,7 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
                 {ing.name}
               </text>
               <text x={x + 12} y={y + 37} className="svc-meta">
-                ingress · {ing.hosts[0] ?? '(host 없음)'}
+                ingress · {ing.hosts[0] ?? t('topo.noHost')}
               </text>
               <title>{`Ingress ${key}\nhosts: ${ing.hosts.join(', ') || '-'}`}</title>
             </g>
@@ -703,7 +706,7 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
             <rect x={x} y={y} width={w} height={h} rx={12} className="node-box" />
             <circle cx={x + 16} cy={y + 17} r={4} className={node.ready ? 'node-dot ok' : 'node-dot error'} />
             <text x={x + 28} y={y + 21} className="node-name">
-              {node.name}
+              {node.name === UNASSIGNED ? t('topo.unassigned') : node.name}
             </text>
             <text x={x + w - 12} y={y + 21} textAnchor="end" className="node-role">
               {node.roles}
@@ -747,7 +750,7 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
               className="node-drag"
               onMouseDown={(e) => startDrag(e, 'move', node.name, { x, y, w, h })}
             >
-              <title>드래그해서 이동</title>
+              <title>{t('topo.dragMove')}</title>
             </rect>
             {/* 우하단 핸들 드래그 → 폭 조절 (Pod 자동 재정렬) */}
             <path
@@ -755,7 +758,7 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
               className="node-resize"
               onMouseDown={(e) => startDrag(e, 'resize', node.name, { x, y, w, h })}
             >
-              <title>드래그해서 크기 조절</title>
+              <title>{t('topo.dragResize')}</title>
             </path>
           </g>
         ))}
@@ -767,7 +770,8 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
           const shortName = pod.name.length > 12 ? pod.name.slice(0, 11) + '…' : pod.name
           const dim =
             (highlight !== null && !highlight.podKeys.has(key)) ||
-            (problemsOnly && !pod.problemSince)
+            (problemsOnly && !pod.problemSince) ||
+            (query !== '' && !pod.name.toLowerCase().includes(query) && !pod.status.toLowerCase().includes(query))
           const u = usage.get(key)
           const gpu = gpuUsage.get(key)
           const rate = podRateMap.get(key)
@@ -777,12 +781,12 @@ export function TopologyView({ pods, services, nodes, ingresses, usage, gpuUsage
           const gpuCirc = 2 * Math.PI * GPU_RING_R
           const tooltip = [
             pod.name,
-            `상태: ${pod.status} · Ready ${pod.ready}`,
-            pod.problemSince ? `문제 ${problemLabel(pod.problemSince)}` : null,
+            t('topo.podStatus', { status: pod.status, ready: pod.ready }),
+            pod.problemSince ? t('topo.problem', { label: problemLabel(pod.problemSince, t) }) : null,
             u ? `CPU ${formatCPU(u.cpuMilli)} · MEM ${formatMemory(u.memoryBytes)}` : null,
-            (pod.gpu ?? 0) > 0 ? `GPU 할당 ${pod.gpu}개` : null,
+            (pod.gpu ?? 0) > 0 ? t('topo.gpuAlloc', { n: pod.gpu ?? 0 }) : null,
             gpu ? `GPU ${gpu.utilPercent.toFixed(0)}% · GPU MEM ${formatMemory(gpu.memUsedBytes)}` : null,
-            rate ? `수신 ${formatMemory(rate.rx)}/s · 송신 ${formatMemory(rate.tx)}/s` : null,
+            rate ? t('topo.rxtx', { rx: formatMemory(rate.rx), tx: formatMemory(rate.tx) }) : null,
           ]
             .filter(Boolean)
             .join('\n')

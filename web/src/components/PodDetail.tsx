@@ -3,6 +3,7 @@ import type { GPUUsage, PodDetailInfo, PodSummary, PodUsage } from '../lib/types
 import { formatAge, formatCPU, formatMemory, statusClass } from '../lib/format'
 import { analyzePod, fetchAIStatus, fetchPodDetail } from '../lib/api'
 import { LogViewer } from './LogViewer'
+import { useI18n } from '../lib/i18n'
 
 interface Props {
   pod: PodSummary
@@ -15,6 +16,7 @@ interface Props {
 type Tab = 'info' | 'env' | 'logs' | 'events' | 'ai'
 
 export function PodDetail({ pod, usage, gpu, cluster = '', onClose }: Props) {
+  const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('info')
   const [detail, setDetail] = useState<PodDetailInfo | null>(null)
   const cls = statusClass(pod.status, pod.phase)
@@ -49,11 +51,11 @@ export function PodDetail({ pod, usage, gpu, cluster = '', onClose }: Props) {
       <div className="tabs">
         {(
           [
-            ['info', '정보'],
-            ['env', '환경'],
-            ['logs', '로그'],
-            ['events', '이벤트'],
-            ['ai', 'AI 분석'],
+            ['info', t('detail.tab.info')],
+            ['env', t('detail.tab.env')],
+            ['logs', t('detail.tab.logs')],
+            ['events', t('detail.tab.events')],
+            ['ai', t('detail.tab.ai')],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button key={key} className={tab === key ? 'tab active' : 'tab'} onClick={() => setTab(key)}>
@@ -72,16 +74,17 @@ export function PodDetail({ pod, usage, gpu, cluster = '', onClose }: Props) {
 }
 
 function InfoTab({ pod, usage, gpu, cls }: { pod: PodSummary; usage?: PodUsage; gpu?: GPUUsage; cls: string }) {
+  const { t } = useI18n()
   return (
     <div className="detail-body">
       <dl className="kv">
-        <dt>상태</dt>
+        <dt>{t('detail.status')}</dt>
         <dd className={`text-${cls}`}>{pod.status}</dd>
         <dt>Ready</dt>
         <dd>{pod.ready}</dd>
-        <dt>재시작</dt>
+        <dt>{t('detail.restarts')}</dt>
         <dd>{pod.restarts}</dd>
-        <dt>노드</dt>
+        <dt>{t('detail.node')}</dt>
         <dd>{pod.nodeName || '-'}</dd>
         <dt>Pod IP</dt>
         <dd>{pod.podIP || '-'}</dd>
@@ -91,28 +94,28 @@ function InfoTab({ pod, usage, gpu, cls }: { pod: PodSummary; usage?: PodUsage; 
           <>
             <dt>CPU</dt>
             <dd>{formatCPU(usage.cpuMilli)}</dd>
-            <dt>메모리</dt>
+            <dt>{t('detail.memory')}</dt>
             <dd>{formatMemory(usage.memoryBytes)}</dd>
           </>
         )}
         {(pod.gpu ?? 0) > 0 && (
           <>
-            <dt>GPU 할당</dt>
-            <dd>{pod.gpu}개</dd>
+            <dt>{t('detail.gpuAlloc')}</dt>
+            <dd>{pod.gpu}</dd>
           </>
         )}
         {gpu && (
           <>
-            <dt>GPU 사용률</dt>
+            <dt>{t('detail.gpuUtil')}</dt>
             <dd>{gpu.utilPercent.toFixed(0)}%</dd>
-            <dt>GPU 메모리</dt>
+            <dt>{t('detail.gpuMem')}</dt>
             <dd>{formatMemory(gpu.memUsedBytes)}</dd>
           </>
         )}
       </dl>
 
-      <h3>컨테이너</h3>
-      {pod.containers.map((c) => {
+      <h3>{t('detail.containers')}</h3>
+      {(pod.containers ?? []).map((c) => {
         const cu = usage?.containers.find((u) => u.name === c.name)
         return (
           <div key={c.name} className="container-row">
@@ -136,7 +139,7 @@ function InfoTab({ pod, usage, gpu, cls }: { pod: PodSummary; usage?: PodUsage; 
 
       {pod.labels && Object.keys(pod.labels).length > 0 && (
         <>
-          <h3>레이블</h3>
+          <h3>{t('detail.labels')}</h3>
           <div className="labels">
             {Object.entries(pod.labels).map(([k, v]) => (
               <span key={k} className="label-chip">
@@ -151,7 +154,8 @@ function InfoTab({ pod, usage, gpu, cls }: { pod: PodSummary; usage?: PodUsage; 
 }
 
 function EnvTab({ detail }: { detail: PodDetailInfo | null }) {
-  if (!detail) return <div className="detail-body loading">불러오는 중…</div>
+  const { t } = useI18n()
+  if (!detail) return <div className="detail-body loading">{t('common.loading')}</div>
   return (
     <div className="detail-body">
       <dl className="kv">
@@ -163,15 +167,16 @@ function EnvTab({ detail }: { detail: PodDetailInfo | null }) {
 
       {(detail.containers ?? []).map((c) => (
         <div key={c.name}>
-          <h3>{c.name} — 환경변수</h3>
+          <h3>{t('detail.envTitle', { name: c.name })}</h3>
           {(c.env ?? []).length === 0 ? (
-            <div className="dim-note">환경변수 없음</div>
+            <div className="dim-note">{t('detail.noEnv')}</div>
           ) : (
             <table className="env-table">
               <tbody>
                 {(c.env ?? []).map((e, i) => (
                   <tr key={i}>
-                    <td className="env-name">{e.name}</td>
+                    {/* 서버는 envFrom 항목 이름을 "*"로 보낸다 (구버전 원격은 "(전체)") */}
+                    <td className="env-name">{e.name === '*' ? t('detail.envAll') : e.name}</td>
                     <td className="env-value">{e.source ? <em>{e.source}</em> : e.value || '""'}</td>
                   </tr>
                 ))}
@@ -179,20 +184,20 @@ function EnvTab({ detail }: { detail: PodDetailInfo | null }) {
             </table>
           )}
           {(c.ports ?? []).length > 0 && (
-            <div className="dim-note">포트: {(c.ports ?? []).join(', ')}</div>
+            <div className="dim-note">{t('detail.ports', { v: (c.ports ?? []).join(', ') })}</div>
           )}
           {(c.mounts ?? []).length > 0 && (
-            <div className="dim-note">마운트: {(c.mounts ?? []).join(' · ')}</div>
+            <div className="dim-note">{t('detail.mounts', { v: (c.mounts ?? []).join(' · ') })}</div>
           )}
         </div>
       ))}
 
       {(detail.volumes ?? []).length > 0 && (
         <>
-          <h3>볼륨</h3>
+          <h3>{t('detail.volumes')}</h3>
           {(detail.volumes ?? []).map((v) => (
             <div key={v.name} className="dim-note">
-              {v.name} — {v.type}
+              {v.name} — {v.type === 'other' ? t('detail.volOther') : v.type}
             </div>
           ))}
         </>
@@ -202,18 +207,19 @@ function EnvTab({ detail }: { detail: PodDetailInfo | null }) {
 }
 
 function EventsTab({ detail }: { detail: PodDetailInfo | null }) {
-  if (!detail) return <div className="detail-body loading">불러오는 중…</div>
+  const { t } = useI18n()
+  if (!detail) return <div className="detail-body loading">{t('common.loading')}</div>
   const events = detail.events ?? []
   return (
     <div className="detail-body">
-      {events.length === 0 && <div className="dim-note">최근 이벤트가 없습니다.</div>}
+      {events.length === 0 && <div className="dim-note">{t('detail.noEvents')}</div>}
       {events.map((ev, i) => (
         <div key={i} className={`event-row ${ev.type === 'Warning' ? 'warning' : ''}`}>
           <div className="event-head">
             <strong>{ev.reason}</strong>
             <span className="event-meta">
               {ev.count > 1 ? `×${ev.count} · ` : ''}
-              {ev.lastSeen ? formatAge(ev.lastSeen) + ' 전' : ''}
+              {ev.lastSeen ? t('time.ago', { age: formatAge(ev.lastSeen) }) : ''}
             </span>
           </div>
           <div className="event-msg">{ev.message}</div>
@@ -222,7 +228,7 @@ function EventsTab({ detail }: { detail: PodDetailInfo | null }) {
 
       {(detail.conditions ?? []).length > 0 && (
         <>
-          <h3>컨디션</h3>
+          <h3>{t('detail.conditions')}</h3>
           {(detail.conditions ?? []).map((c) => (
             <div key={c.type} className="dim-note">
               <span className={c.status === 'True' ? 'text-ok' : 'text-warn'}>●</span> {c.type}: {c.status}
@@ -236,6 +242,7 @@ function EventsTab({ detail }: { detail: PodDetailInfo | null }) {
 }
 
 function AITab({ pod, cluster }: { pod: PodSummary; cluster: string }) {
+  const { t } = useI18n()
   const [models, setModels] = useState<string[]>([])
   const [selected, setSelected] = useState('')
   const [loaded, setLoaded] = useState(false)
@@ -273,14 +280,14 @@ function AITab({ pod, cluster }: { pod: PodSummary; cluster: string }) {
     }
   }
 
-  if (!loaded) return <div className="detail-body loading">확인 중…</div>
+  if (!loaded) return <div className="detail-body loading">{t('common.checking')}</div>
   if (models.length === 0) {
     return (
       <div className="detail-body">
         <div className="ai-notice">
-          AI 분석이 설정되지 않았습니다.
+          {t('ai.notConfigured')}
           <br />
-          관리자 설정(⚙) → AI 분석 설정에서 모델 엔드포인트를 등록하세요.
+          {t('ai.notConfiguredHint')}
         </div>
       </div>
     )
@@ -297,25 +304,24 @@ function AITab({ pod, cluster }: { pod: PodSummary; cluster: string }) {
           ))}
         </select>
         <button className="ai-run" onClick={run} disabled={running}>
-          {running ? '분석 중… (최대 2분)' : result ? '다시 분석' : '분석 실행'}
+          {running ? t('ai.running') : result ? t('ai.rerun') : t('ai.run')}
         </button>
       </div>
       {running && (
         <div className="ai-notice">
-          Pod 상태·이벤트·최근 로그를 수집해서 모델에 전달했습니다. 응답을 기다리는 중…
+          {t('ai.waiting')}
         </div>
       )}
       {error && <div className="admin-error">{error}</div>}
       {result && (
         <>
-          <div className="ai-model">분석 모델: {resultModel}</div>
+          <div className="ai-model">{t('ai.model', { m: resultModel })}</div>
           <div className="ai-result">{result}</div>
         </>
       )}
       {!running && !result && !error && (
         <div className="dim-note">
-          분석 실행을 누르면 이 Pod의 상태, 컨디션, K8s 이벤트, 최근 로그를 모아 선택한 AI 모델에게 장애
-          요인 분석을 요청합니다. 환경변수 값 등 민감정보는 전송하지 않습니다.
+          {t('ai.intro')}
         </div>
       )}
     </div>

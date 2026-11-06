@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PodSummary } from '../lib/types'
 import { logsURL } from '../lib/api'
+import { useI18n } from '../lib/i18n'
 
 interface Props {
   pod: PodSummary
@@ -8,7 +9,8 @@ interface Props {
 }
 
 export function LogViewer({ pod, cluster = '' }: Props) {
-  const [container, setContainer] = useState(pod.containers[0]?.name ?? '')
+  const { t } = useI18n()
+  const [container, setContainer] = useState(pod.containers?.[0]?.name ?? '')
   const [follow, setFollow] = useState(true)
   const [text, setText] = useState('')
   const [error, setError] = useState('')
@@ -25,7 +27,7 @@ export function LogViewer({ pod, cluster = '' }: Props) {
           signal: controller.signal,
         })
         if (!res.ok) {
-          setError(`로그 조회 실패 (${res.status})`)
+          setError(t('logs.failed', { status: res.status }))
           return
         }
         if (!res.body) return
@@ -58,17 +60,17 @@ export function LogViewer({ pod, cluster = '' }: Props) {
     <div className="log-viewer">
       <div className="log-controls">
         <select value={container} onChange={(e) => setContainer(e.target.value)}>
-          {pod.containers.map((c) => (
+          {(pod.containers ?? []).map((c) => (
             <option key={c.name} value={c.name}>
               {c.name}
             </option>
           ))}
         </select>
         <label>
-          <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> 실시간
+          <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> {t('logs.follow')}
         </label>
       </div>
-      {error ? <div className="log-error">{error}</div> : <pre ref={preRef} className="log-output">{text || '로그를 불러오는 중…'}</pre>}
+      {error ? <div className="log-error">{error}</div> : <pre ref={preRef} className="log-output">{text || t('logs.loading')}</pre>}
     </div>
   )
 }

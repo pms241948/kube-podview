@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/pms241948/CC-K8s-podview/internal/ai"
+	"github.com/pms241948/CC-K8s-podview/internal/i18n"
 	"github.com/pms241948/CC-K8s-podview/internal/k8s"
 	"github.com/pms241948/CC-K8s-podview/internal/store"
 )
@@ -47,23 +48,23 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	var ok bool
 	if req.Model != "" {
 		if cfg, ok = st.FindModel(req.Model); !ok {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("등록되지 않은 모델입니다: %s", req.Model))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "unknown model: %s", "등록되지 않은 모델입니다: %s", req.Model))
 			return
 		}
 	} else if cfg, ok = st.ActiveModel(); !ok {
 		httpError(w, http.StatusServiceUnavailable,
-			fmt.Errorf("AI 분석이 설정되지 않았습니다. 관리자 설정에서 모델 엔드포인트를 등록하세요"))
+			i18n.Errorf(r, "AI analysis isn't configured. Register a model endpoint in Settings", "AI 분석이 설정되지 않았습니다. 설정에서 모델 엔드포인트를 등록하세요"))
 		return
 	}
 
 	ns, pod := r.PathValue("ns"), r.PathValue("pod")
-	podData, err := s.collectPodData(r.Context(), ns, pod)
+	podData, err := s.collectPodData(r, ns, pod)
 	if err != nil {
 		httpError(w, http.StatusNotFound, err)
 		return
 	}
 
-	analysis, err := ai.Analyze(r.Context(), cfg, podData)
+	analysis, err := ai.Analyze(r.Context(), cfg, podData, i18n.FromRequest(r))
 	if err != nil {
 		httpError(w, http.StatusBadGateway, err)
 		return
@@ -72,8 +73,10 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 }
 
 // collectPodData는 분석 프롬프트에 넣을 Pod 데이터를 텍스트로 구성한다.
+// 데이터 머리글은 영어로 고정한다 — 모델 입력용이며, 보고서 언어는 시스템 프롬프트가 정한다.
 // 환경변수 값은 넣지 않는다 (시크릿 노출 방지 — 이름 수준 정보는 detail에 포함).
-func (s *Server) collectPodData(ctx context.Context, ns, name string) (string, error) {
+func (s *Server) collectPodData(r *http.Request, ns, name string) (string, error) {
+	ctx := r.Context()
 	pods, err := s.hub.Pods(ns)
 	if err != nil {
 		return "", err
@@ -86,7 +89,7 @@ func (s *Server) collectPodData(ctx context.Context, ns, name string) (string, e
 		}
 	}
 	if summary == nil {
-		return "", fmt.Errorf("Pod를 찾을 수 없습니다: %s/%s", ns, name)
+		return "", i18n.Errorf(r, "Pod not found: %s/%s", "Pod를 찾을 수 없습니다: %s/%s", ns, name)
 	}
 
 	detail, err := s.hub.Detail(ctx, s.clients.Core, ns, name)
@@ -95,23 +98,23 @@ func (s *Server) collectPodData(ctx context.Context, ns, name string) (string, e
 	}
 
 	var sb strings.Builder
-	sb.WriteString("# Pod 분석 요청\n\n## 기본 정보\n")
-	writeKV(&sb, "이름", ns+"/"+name)
-	writeKV(&sb, "상태", fmt.Sprintf("%s (phase=%s, ready=%s, 재시작=%d)",
+	sb.WriteString("# Pod analysis request\n\n## Basics\n")
+	writeKV(&sb, "Name", ns+"/"+name)
+	writeKV(&sb, "Status", fmt.Sprintf("%s (phase=%s, ready=%s, restarts=%d)",
 		summary.Status, summary.Phase, summary.Ready, summary.Restarts))
-	writeKV(&sb, "노드", summary.NodeName)
+	writeKV(&sb, "Node", summary.NodeName)
 	if summary.ProblemSince != nil {
-		writeKV(&sb, "문제 발생 시점", summary.ProblemSince.Format("2006-01-02 15:04:05"))
+		writeKV(&sb, "Problem since", summary.ProblemSince.Format("2006-01-02 15:04:05"))
 	}
 
-	sb.WriteString("\n## 컨테이너\n")
+	sb.WriteString("\n## Containers\n")
 	for _, c := range summary.Containers {
-		fmt.Fprintf(&sb, "- %s: 이미지=%s, 상태=%s, ready=%v, 재시작=%d\n",
+		fmt.Fprintf(&sb, "- %s: image=%s, state=%s, ready=%v, restarts=%d\n",
 			c.Name, c.Image, c.State, c.Ready, c.Restarts)
 	}
 
 	if len(detail.Conditions) > 0 {
-		sb.WriteString("\n## 컨디션\n")
+		sb.WriteString("\n## Conditions\n")
 		for _, c := range detail.Conditions {
 			fmt.Fprintf(&sb, "- %s=%s", c.Type, c.Status)
 			if c.Reason != "" {
@@ -122,26 +125,26 @@ func (s *Server) collectPodData(ctx context.Context, ns, name string) (string, e
 	}
 
 	if len(detail.Events) > 0 {
-		sb.WriteString("\n## 최근 K8s 이벤트\n")
+		sb.WriteString("\n## Recent K8s events\n")
 		for _, ev := range detail.Events {
 			fmt.Fprintf(&sb, "- [%s] %s ×%d: %s\n", ev.Type, ev.Reason, max(ev.Count, 1), ev.Message)
 		}
 	}
 
-	sb.WriteString("\n## 최근 로그\n")
+	sb.WriteString("\n## Recent logs\n")
 	for _, c := range summary.Containers {
 		logs := s.tailLogs(ctx, ns, name, c.Name, false)
 		if logs == "" && c.Restarts > 0 {
 			// 현재 로그가 없으면 직전(크래시한) 컨테이너의 로그를 시도
 			logs = s.tailLogs(ctx, ns, name, c.Name, true)
 			if logs != "" {
-				logs = "(직전 크래시 컨테이너의 로그)\n" + logs
+				logs = "(logs from the previous, crashed container)\n" + logs
 			}
 		}
 		if logs == "" {
-			logs = "(로그 없음)"
+			logs = "(no logs)"
 		}
-		fmt.Fprintf(&sb, "### 컨테이너 %s\n```\n%s\n```\n", c.Name, logs)
+		fmt.Fprintf(&sb, "### Container %s\n```\n%s\n```\n", c.Name, logs)
 	}
 
 	return sb.String(), nil
@@ -206,19 +209,19 @@ func (s *Server) registerAIAdmin(mux *http.ServeMux) {
 		req.Model = strings.TrimSpace(req.Model)
 		req.URL = strings.TrimRight(strings.TrimSpace(req.URL), "/")
 		if !validName.MatchString(req.Name) {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("이름은 한글/영문/숫자/._- 40자 이내여야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "name must be 40 characters or fewer: letters, digits, ._-", "이름은 한글/영문/숫자/._- 40자 이내여야 합니다"))
 			return
 		}
 		if !strings.HasPrefix(req.URL, "http://") && !strings.HasPrefix(req.URL, "https://") {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("URL은 http(s)://로 시작해야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "URL must start with http(s)://", "URL은 http(s)://로 시작해야 합니다"))
 			return
 		}
 		if req.Model == "" {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("모델 이름이 필요합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "model name is required", "모델 이름이 필요합니다"))
 			return
 		}
 		if req.Provider != "openai" && req.Provider != "anthropic" {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("provider는 openai 또는 anthropic이어야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "provider must be openai or anthropic", "provider는 openai 또는 anthropic이어야 합니다"))
 			return
 		}
 		err := s.settings.Update(func(st *store.Settings) error {
@@ -259,7 +262,7 @@ func (s *Server) registerAIAdmin(mux *http.ServeMux) {
 					return nil
 				}
 			}
-			return fmt.Errorf("모델을 찾을 수 없습니다: %s", name)
+			return i18n.Errorf(r, "model not found: %s", "모델을 찾을 수 없습니다: %s", name)
 		})
 		if err != nil {
 			httpError(w, http.StatusNotFound, err)
@@ -279,7 +282,7 @@ func (s *Server) registerAIAdmin(mux *http.ServeMux) {
 		}
 		err := s.settings.Update(func(st *store.Settings) error {
 			if _, ok := st.FindModel(req.Name); !ok {
-				return fmt.Errorf("모델을 찾을 수 없습니다: %s", req.Name)
+				return i18n.Errorf(r, "model not found: %s", "모델을 찾을 수 없습니다: %s", req.Name)
 			}
 			st.ActiveAI = req.Name
 			return nil

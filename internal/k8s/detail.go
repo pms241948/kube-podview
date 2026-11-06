@@ -75,9 +75,9 @@ func (h *Hub) Detail(ctx context.Context, client kubernetes.Interface, namespace
 		for _, src := range c.EnvFrom {
 			switch {
 			case src.ConfigMapRef != nil:
-				cd.Env = append(cd.Env, EnvEntry{Name: "(전체)", Source: "configMap: " + src.ConfigMapRef.Name})
+				cd.Env = append(cd.Env, EnvEntry{Name: "*", Source: "configMap: " + src.ConfigMapRef.Name})
 			case src.SecretRef != nil:
-				cd.Env = append(cd.Env, EnvEntry{Name: "(전체)", Source: "secret: " + src.SecretRef.Name})
+				cd.Env = append(cd.Env, EnvEntry{Name: "*", Source: "secret: " + src.SecretRef.Name})
 			}
 		}
 		for _, p := range c.Ports {
@@ -159,5 +159,5 @@ func volumeType(v corev1.Volume) string {
 	case v.DownwardAPI != nil:
 		return "downwardAPI"
 	}
-	return "기타"
+	return "other" // 화면에서 언어별로 번역
 }

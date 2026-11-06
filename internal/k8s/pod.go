@@ -66,8 +66,20 @@ func Summarize(pod *corev1.Pod) PodSummary {
 		}
 	}
 
-	readyCount := 0
+	// 컨테이너 목록은 스펙 기준으로 만든다. 스케줄 전 Pending Pod는 ContainerStatuses가
+	// 비어 있으므로, 상태 기준으로 만들면 목록이 null이 되어 상세 화면이 깨진다.
+	statuses := make(map[string]corev1.ContainerStatus, len(pod.Status.ContainerStatuses))
 	for _, cs := range pod.Status.ContainerStatuses {
+		statuses[cs.Name] = cs
+	}
+	readyCount := 0
+	s.Containers = make([]ContainerSummary, 0, len(pod.Spec.Containers))
+	for _, c := range pod.Spec.Containers {
+		cs, ok := statuses[c.Name]
+		if !ok {
+			s.Containers = append(s.Containers, ContainerSummary{Name: c.Name, Image: c.Image, State: "Waiting"})
+			continue
+		}
 		if cs.Ready {
 			readyCount++
 		}

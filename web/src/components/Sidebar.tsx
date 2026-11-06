@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../lib/i18n'
 
 interface Props {
   namespaces: string[]
@@ -14,6 +15,7 @@ const MIN_W = 160
 const MAX_W = 480
 
 export function Sidebar({ namespaces, selected, collapsed, problemCounts, highlightNS, onToggle, onSelect }: Props) {
+  const { t } = useI18n()
   const [width, setWidth] = useState(() => {
     const saved = parseInt(localStorage.getItem('podview-sidebar-width') ?? '220', 10)
     return Number.isFinite(saved) ? Math.min(MAX_W, Math.max(MIN_W, saved)) : 220
@@ -54,11 +56,11 @@ export function Sidebar({ namespaces, selected, collapsed, problemCounts, highli
   if (collapsed) {
     return (
       <nav className="sidebar collapsed">
-        <button className="sidebar-toggle" onClick={onToggle} title="네임스페이스 목록 펼치기">
+        <button className="sidebar-toggle" onClick={onToggle} title={t('sidebar.expand')}>
           »
         </button>
         {totalProblems > 0 && <span className="ns-problem rail">{totalProblems}</span>}
-        <div className="sidebar-rail-label">{selected || '전체'}</div>
+        <div className="sidebar-rail-label">{selected || t('sidebar.all')}</div>
       </nav>
     )
   }
@@ -69,19 +71,19 @@ export function Sidebar({ namespaces, selected, collapsed, problemCounts, highli
         <span>
           <span className="logo-mark">⎈</span> PodView
         </span>
-        <button className="sidebar-toggle" onClick={onToggle} title="네임스페이스 목록 접기">
+        <button className="sidebar-toggle" onClick={onToggle} title={t('sidebar.collapse')}>
           «
         </button>
       </div>
       <div className="ns-search">
         <input
           className="ns-search-input"
-          placeholder="네임스페이스 검색"
+          placeholder={t('sidebar.search')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         {query && (
-          <button className="ns-search-clear" onClick={() => setQuery('')} title="지우기">
+          <button className="ns-search-clear" onClick={() => setQuery('')} title={t('sidebar.clear')}>
             ✕
           </button>
         )}
@@ -90,7 +92,7 @@ export function Sidebar({ namespaces, selected, collapsed, problemCounts, highli
         {/* 검색 중이 아닐 때만 "전체" 항목 노출 */}
         {!q && (
           <button className={selected === '' ? 'ns active' : 'ns'} onClick={() => onSelect('')}>
-            <span className="ns-name">전체 네임스페이스</span>
+            <span className="ns-name">{t('app.allNamespaces')}</span>
             {totalProblems > 0 && <span className="ns-problem">{totalProblems}</span>}
           </button>
         )}
@@ -108,12 +110,12 @@ export function Sidebar({ namespaces, selected, collapsed, problemCounts, highli
             </button>
           )
         })}
-        {q && filtered.length === 0 && <div className="ns-empty">일치하는 네임스페이스 없음</div>}
+        {q && filtered.length === 0 && <div className="ns-empty">{t('sidebar.noMatch')}</div>}
       </div>
       {/* 오른쪽 가장자리 드래그 → 폭 조절 */}
       <div
         className="sidebar-resize"
-        title="드래그해서 폭 조절"
+        title={t('sidebar.resize')}
         onMouseDown={(e) => {
           e.preventDefault()
           dragRef.current = { startX: e.clientX, startW: width }

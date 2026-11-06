@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/pms241948/CC-K8s-podview/internal/config"
+	"github.com/pms241948/CC-K8s-podview/internal/i18n"
 	"github.com/pms241948/CC-K8s-podview/internal/store"
 )
 
@@ -151,7 +152,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/admin/") && sess.Role != "admin" {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "관리자 권한이 필요합니다"})
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(r, "Admin access is required", "관리자 권한이 필요합니다")})
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -174,12 +175,12 @@ func (a *Auth) handleLocalLogin(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.Username == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "잘못된 요청"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(r, "Invalid request", "잘못된 요청")})
 		return
 	}
 
 	if a.tooManyFailures(req.Username) {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요."})
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": i18n.T(r, "Too many sign-in attempts. Try again in a moment.", "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요.")})
 		return
 	}
 
@@ -191,7 +192,7 @@ func (a *Auth) handleLocalLogin(w http.ResponseWriter, r *http.Request) {
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil || !exists {
 		a.recordFailure(req.Username)
 		slog.Warn("로컬 로그인 실패", "username", req.Username, "remote", r.RemoteAddr)
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "아이디 또는 비밀번호가 올바르지 않습니다"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": i18n.T(r, "Incorrect username or password", "아이디 또는 비밀번호가 올바르지 않습니다")})
 		return
 	}
 	if role == "" {

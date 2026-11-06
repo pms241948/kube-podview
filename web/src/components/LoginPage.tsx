@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { fetchAuthMethods, loginLocal } from '../lib/api'
 import type { AuthMethods } from '../lib/types'
+import { LanguageSelect, useI18n } from '../lib/i18n'
 
 export function LoginPage() {
+  const { t } = useI18n()
   const [methods, setMethods] = useState<AuthMethods | null>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -25,7 +27,7 @@ export function LoginPage() {
     const res = await loginLocal(username, password)
     setBusy(false)
     if (res.ok) window.location.href = '/'
-    else setError(res.error ?? '로그인 실패')
+    else setError(res.error ?? t('login.failed'))
   }
 
   if (!methods) return null
@@ -40,7 +42,7 @@ export function LoginPage() {
         {methods.local && (
           <form onSubmit={submit} className="login-form">
             <input
-              placeholder="아이디"
+              placeholder={t('login.username')}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoFocus
@@ -48,25 +50,28 @@ export function LoginPage() {
             />
             <input
               type="password"
-              placeholder="비밀번호"
+              placeholder={t('login.password')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
             />
             {error && <div className="login-error">{error}</div>}
             <button type="submit" className="login-btn" disabled={busy || !username || !password}>
-              {busy ? '로그인 중…' : '로그인'}
+              {busy ? t('login.busy') : t('login.submit')}
             </button>
           </form>
         )}
 
-        {methods.oidc && methods.local && <div className="login-divider">또는</div>}
+        {methods.oidc && methods.local && <div className="login-divider">{t('login.or')}</div>}
 
         {methods.oidc && (
           <a href="/auth/login" className="login-btn sso">
-            SSO(Keycloak) 로그인
+            {t('login.sso')}
           </a>
         )}
+
+        {/* 로그인 전에도 언어를 바꿀 수 있도록 */}
+        <LanguageSelect className="login-lang" />
       </div>
     </div>
   )

@@ -6,12 +6,14 @@
 package gateway
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 
+	"github.com/pms241948/CC-K8s-podview/internal/i18n"
 	"github.com/pms241948/CC-K8s-podview/internal/store"
 )
 
@@ -38,13 +40,13 @@ func (g *Gateway) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if target == nil {
-		http.Error(w, "등록되지 않은 클러스터: "+name, http.StatusNotFound)
+		http.Error(w, i18n.T(r, "Unknown cluster: ", "등록되지 않은 클러스터: ")+name, http.StatusNotFound)
 		return
 	}
 
 	base, err := url.Parse(target.URL)
 	if err != nil {
-		http.Error(w, "클러스터 URL이 잘못되었습니다", http.StatusBadGateway)
+		http.Error(w, i18n.T(r, "The cluster URL is invalid", "클러스터 URL이 잘못되었습니다"), http.StatusBadGateway)
 		return
 	}
 
@@ -63,11 +65,11 @@ func (g *Gateway) handleProxy(w http.ResponseWriter, r *http.Request) {
 			}
 		},
 		FlushInterval: -1, // SSE/로그 스트리밍 즉시 플러시
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			slog.Warn("클러스터 프록시 실패", "cluster", name, "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			_, _ = w.Write([]byte(`{"error":"클러스터에 연결할 수 없습니다"}`))
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r, "Couldn't connect to the cluster", "클러스터에 연결할 수 없습니다")})
 		},
 	}
 	proxy.ServeHTTP(w, r)

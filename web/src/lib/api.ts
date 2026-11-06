@@ -1,3 +1,4 @@
+import { currentLang, translate } from './i18n'
 import type { AuthMethods, GPUSnapshot, MetricsResponse, PodDetailInfo, Topology, TrafficSnapshot, UserInfo } from './types'
 
 /**
@@ -8,14 +9,19 @@ export function apiBase(cluster: string): string {
   return cluster ? `/proxy/${encodeURIComponent(cluster)}` : ''
 }
 
+/** 선택한 화면 언어를 서버에 알린다 — 서버 오류 메시지와 AI 분석 보고서 언어에 쓰인다 (게이트웨이 프록시도 그대로 전달). */
+export function langHeaders(extra?: Record<string, string>): Record<string, string> {
+  return { 'Accept-Language': currentLang(), ...extra }
+}
+
 async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url)
+  const res = await fetch(url, { headers: langHeaders() })
   if (res.status === 401) {
     // 세션 만료 → 로그인 페이지로
     window.location.href = '/login'
     throw new Error('unauthorized')
   }
-  if (!res.ok) throw new Error(`${url} 요청 실패: ${res.status}`)
+  if (!res.ok) throw new Error(`${url}: ${translate('api.requestFailed', { status: res.status })}`)
   return res.json()
 }
 
@@ -71,21 +77,21 @@ export async function analyzePod(
 ): Promise<{ analysis?: string; model?: string; error?: string }> {
   const res = await fetch(
     `${apiBase(cluster)}/api/namespaces/${encodeURIComponent(namespace)}/pods/${encodeURIComponent(pod)}/analyze`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }) },
+    { method: 'POST', headers: langHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ model }) },
   )
   const body = await res.json().catch(() => ({}))
-  if (!res.ok) return { error: body.error ?? `분석 요청 실패 (${res.status})` }
+  if (!res.ok) return { error: body.error ?? translate('api.analyzeFailed', { status: res.status }) }
   return body
 }
 
 export async function fetchMe(): Promise<UserInfo> {
-  const res = await fetch('/auth/me')
+  const res = await fetch('/auth/me', { headers: langHeaders() })
   if (!res.ok) return { authenticated: false }
   return res.json()
 }
 
 export async function fetchAuthMethods(): Promise<AuthMethods> {
-  const res = await fetch('/auth/methods')
+  const res = await fetch('/auth/methods', { headers: langHeaders() })
   if (!res.ok) return { enabled: false, oidc: false, local: false }
   return res.json()
 }
@@ -93,11 +99,11 @@ export async function fetchAuthMethods(): Promise<AuthMethods> {
 export async function loginLocal(username: string, password: string): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch('/auth/local', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: langHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ username, password }),
   })
   if (res.ok) return { ok: true }
-  const body = await res.json().catch(() => ({ error: `로그인 실패 (${res.status})` }))
+  const body = await res.json().catch(() => ({ error: translate('api.loginFailed', { status: res.status }) }))
   return { ok: false, error: body.error }
 }
 
@@ -136,11 +142,11 @@ export interface AdminOIDCUser {
 async function send(method: string, url: string, body?: unknown): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch(url, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: langHeaders(body ? { 'Content-Type': 'application/json' } : undefined),
     body: body ? JSON.stringify(body) : undefined,
   })
   if (res.ok) return { ok: true }
-  const data = await res.json().catch(() => ({ error: `요청 실패 (${res.status})` }))
+  const data = await res.json().catch(() => ({ error: translate('api.requestFailed', { status: res.status }) }))
   return { ok: false, error: data.error }
 }
 

@@ -1,5 +1,6 @@
 import type { GPUUsage, PodSummary, PodUsage } from '../lib/types'
 import { formatAge, formatCPU, formatMemory, problemLabel, problemRecency, statusClass } from '../lib/format'
+import { useI18n } from '../lib/i18n'
 
 interface Props {
   pod: PodSummary
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function PodCard({ pod, usage, gpu, selected, onClick }: Props) {
+  const { t } = useI18n()
   const cls = statusClass(pod.status, pod.phase)
   return (
     <button className={`pod-card ${selected ? 'selected' : ''}`} onClick={onClick}>
@@ -24,7 +26,7 @@ export function PodCard({ pod, usage, gpu, selected, onClick }: Props) {
         {pod.status}
         {pod.problemSince && (
           <span className={`problem-badge ${problemRecency(pod.problemSince)}`}>
-            {problemLabel(pod.problemSince)}
+            {problemLabel(pod.problemSince, t)}
           </span>
         )}
       </div>

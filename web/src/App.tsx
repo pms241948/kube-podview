@@ -8,12 +8,38 @@ import { useGPU } from './hooks/useGPU'
 import { useProblemCounts } from './hooks/useProblemCounts'
 import { Sidebar } from './components/Sidebar'
 import { PodCard } from './components/PodCard'
+import {
+  EMPTY_MESSAGE,
+  NamespaceCard,
+  NamespaceFilterBar,
+  filterNamespaces,
+  summarizeNamespaces,
+  type NsFilter,
+} from './components/NamespaceCard'
 import { PodDetail } from './components/PodDetail'
 import { TopologyView } from './components/TopologyView'
 import { LoginPage } from './components/LoginPage'
 import { AdminPage } from './components/AdminPage'
+import { useI18n } from './lib/i18n'
 
-type ViewMode = 'cards' | 'topology'
+// 화면 설정은 브라우저에 저장한다. 저장소가 막힌 환경(사생활 보호 모드 등)에서도 화면은 정상 동작해야 하므로 예외는 무시.
+function loadPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function savePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* 저장 실패는 무시 — 다음 방문 시 기본값으로 시작 */
+  }
+}
+
+const NS_FILTERS: NsFilter[] = ['all', 'problem', 'recent']
 
 export default function App() {
   // /login 경로는 로그인 페이지를 렌더링 (별도 라우터 없이 처리)
@@ -22,11 +48,11 @@ export default function App() {
 }
 
 function Dashboard() {
+  const { t } = useI18n()
   const [namespaces, setNamespaces] = useState<string[]>([])
   const [selectedNS, setSelectedNS] = useState('')
   const [selectedPod, setSelectedPod] = useState<PodSummary | null>(null)
   const [filter, setFilter] = useState('')
-  const [view, setView] = useState<ViewMode>('cards')
   const [user, setUser] = useState<UserInfo>({ authenticated: false })
   const [services, setServices] = useState<ServiceSummary[]>([])
   const [nodes, setNodes] = useState<NodeSummary[]>([])
@@ -37,6 +63,19 @@ function Dashboard() {
   const [showAdmin, setShowAdmin] = useState(false)
   const [problemsOnly, setProblemsOnly] = useState(false)
   const [hoverNS, setHoverNS] = useState<string | null>(null)
+  const [nsFilter, setNsFilter] = useState<NsFilter>(() => {
+    const saved = loadPref('podview-ns-filter') as NsFilter | null
+    return saved && NS_FILTERS.includes(saved) ? saved : 'all'
+  })
+  const [hideEmptyNS, setHideEmptyNS] = useState(() => loadPref('podview-ns-hide-empty') === '1')
+  const changeNsFilter = (f: NsFilter) => {
+    setNsFilter(f)
+    savePref('podview-ns-filter', f)
+  }
+  const changeHideEmptyNS = (v: boolean) => {
+    setHideEmptyNS(v)
+    savePref('podview-ns-hide-empty', v ? '1' : '0')
+  }
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('podview-sidebar-collapsed') === '1',
   )
@@ -51,6 +90,10 @@ function Dashboard() {
   const { usage, metricsAvailable } = useMetrics(selectedNS, cluster)
   const { gpuUsage } = useGPU(selectedNS, cluster)
   const problemCounts = useProblemCounts(cluster)
+
+  // 전체 네임스페이스는 요약 카드(개요), 네임스페이스를 고르면 그 네임스페이스의 토폴로지를 보여준다.
+  // 클러스터 전체를 토폴로지로 그리면 Pod가 너무 많아 읽기 어렵기 때문이다.
+  const isOverview = selectedNS === ''
 
   const reloadClusters = () => fetchClusters().then((r) => setClusters(r.clusters)).catch(() => {})
 
@@ -73,7 +116,11 @@ function Dashboard() {
 
   // 토폴로지 구조(서비스·노드·Ingress)는 자주 안 바뀌므로 30초마다 갱신. Pod 상태는 SSE가 실시간 반영.
   useEffect(() => {
-    if (view !== 'topology') return
+    // 네임스페이스가 바뀌면 이전 네임스페이스의 구조가 잠깐 보이지 않도록 비운다
+    setServices([])
+    setNodes([])
+    setIngresses([])
+    if (isOverview) return
     let stopped = false
     const load = () =>
       fetchTopology(selectedNS, cluster)
@@ -90,11 +137,12 @@ function Dashboard() {
       stopped = true
       clearInterval(timer)
     }
-  }, [view, selectedNS, cluster])
+  }, [isOverview, selectedNS, cluster])
 
   // 실측 트래픽 (Prometheus 미연동 시 available:false 한 번만 확인하고 중단)
   useEffect(() => {
-    if (view !== 'topology') return
+    setTraffic(null)
+    if (isOverview) return
     let stopped = false
     let timer: ReturnType<typeof setInterval> | undefined
     const load = () =>
@@ -111,7 +159,7 @@ function Dashboard() {
       stopped = true
       if (timer) clearInterval(timer)
     }
-  }, [view, selectedNS, cluster])
+  }, [isOverview, selectedNS, cluster])
 
   const livePod = useMemo(() => {
     if (!selectedPod) return null
@@ -141,6 +189,25 @@ function Dashboard() {
     return c
   }, [pods])
 
+  // 개요 화면에서 "이상 N"을 누르거나 검색하면 네임스페이스 카드 대신
+  // 클러스터 전체에서 해당하는 Pod 카드를 보여준다 (문제 Pod는 최근 발생순).
+  const showPodList = isOverview && (problemsOnly || filter.trim() !== '')
+
+  const nsSummaries = useMemo(
+    () => (isOverview ? summarizeNamespaces(namespaces, pods, usage) : []),
+    [isOverview, namespaces, pods, usage],
+  )
+  const visibleNS = useMemo(
+    () => filterNamespaces(nsSummaries, nsFilter, hideEmptyNS),
+    [nsSummaries, nsFilter, hideEmptyNS],
+  )
+
+  const selectNamespace = (ns: string) => {
+    setSelectedNS(ns)
+    setSelectedPod(null)
+    setHoverNS(null)
+  }
+
   return (
     <div className="layout">
       <Sidebar
@@ -150,25 +217,26 @@ function Dashboard() {
         problemCounts={problemCounts}
         highlightNS={hoverNS}
         onToggle={toggleSidebar}
-        onSelect={(ns) => {
-          setSelectedNS(ns)
-          setSelectedPod(null)
-        }}
+        onSelect={selectNamespace}
       />
       <div className="main">
         <header className="topbar">
           <div>
-            <h1>{selectedNS || '전체 네임스페이스'}</h1>
+            <h1>{selectedNS || t('app.allNamespaces')}</h1>
             <span className="counts">
-              총 {counts.total}개 · 정상 {counts.running} ·{' '}
+              {t('app.counts', { total: counts.total, ok: counts.running })}
               <button
                 className={`problem-filter ${counts.problem > 0 ? 'has-problem' : ''} ${problemsOnly ? 'active' : ''}`}
                 onClick={() => setProblemsOnly((v) => !v)}
-                title="문제 Pod만 보기 (다시 누르면 해제)"
+                title={t('app.problemBtnTitle')}
               >
-                이상 {counts.problem}
+                {t('app.problemBtn', { n: counts.problem })}
               </button>
-              {problemsOnly && <span className="problem-mode-note"> — 문제 Pod만 표시 중</span>}
+              {problemsOnly && (
+                <span className="problem-mode-note">
+                  {t(isOverview ? 'app.problemModeOverview' : 'app.problemModeTopology')}
+                </span>
+              )}
             </span>
           </div>
           <div className="topbar-right">
@@ -176,53 +244,67 @@ function Dashboard() {
               className="cluster-select"
               value={cluster}
               onChange={(e) => setCluster(e.target.value)}
-              title="클러스터 선택"
+              title={t('app.clusterSelect')}
             >
-              <option value="">이 클러스터</option>
+              <option value="">{t('app.thisCluster')}</option>
               {clusters.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
             </select>
-            <div className="view-toggle">
-              <button className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>
-                카드
-              </button>
-              <button className={view === 'topology' ? 'active' : ''} onClick={() => setView('topology')}>
-                토폴로지
-              </button>
-            </div>
             <span className={`conn conn-${connState}`}>
-              {connState === 'open' ? '● 실시간 연결됨' : connState === 'connecting' ? '○ 연결 중…' : '○ 재연결 중…'}
+              {t(connState === 'open' ? 'app.connOpen' : connState === 'connecting' ? 'app.connConnecting' : 'app.connRetry')}
             </span>
-            {view === 'cards' && (
-              <input
-                className="filter"
-                placeholder="Pod 이름/상태 검색"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-            )}
-            {user.role === 'admin' && (
-              <button className="gear" title="관리자 설정" onClick={() => setShowAdmin(true)}>
-                ⚙
-              </button>
-            )}
+            <input
+              className="filter"
+              placeholder={t(isOverview ? 'app.searchOverview' : 'app.searchTopology')}
+              title={t(isOverview ? 'app.searchOverviewTitle' : 'app.searchTopologyTitle')}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            {/* 설정은 모든 사용자에게 열려 있다 (언어 등 일반 설정). 관리자 항목은 설정 화면 안에서 admin에게만 보인다 */}
+            <button className="gear" title={t('app.settings')} onClick={() => setShowAdmin(true)}>
+              ⚙
+            </button>
             {user.authenticated && (user.name || user.email) && (
               <span className="user">
                 {user.name || user.email}
-                <a href="/auth/logout">로그아웃</a>
+                <a href="/auth/logout">{t('app.logout')}</a>
               </span>
             )}
           </div>
         </header>
 
         {!metricsAvailable && (
-          <div className="banner">metrics-server가 설치되지 않아 리소스 사용량을 표시할 수 없습니다.</div>
+          <div className="banner">{t('app.noMetrics')}</div>
         )}
 
-        {view === 'cards' ? (
+        {/* 네임스페이스 카드 필터 — Pod 카드 목록("이상 N"·검색)일 때는 숨긴다 */}
+        {isOverview && !showPodList && (
+          <NamespaceFilterBar
+            summaries={nsSummaries}
+            value={nsFilter}
+            hideEmpty={hideEmptyNS}
+            onChange={changeNsFilter}
+            onHideEmptyChange={changeHideEmptyNS}
+          />
+        )}
+
+        {isOverview && !showPodList ? (
+          <div className="pod-grid">
+            {visibleNS.map((s) => (
+              <NamespaceCard
+                key={s.ns}
+                summary={s}
+                onOpen={() => selectNamespace(s.ns)}
+                onSelectPod={setSelectedPod}
+                onHover={setHoverNS}
+              />
+            ))}
+            {visibleNS.length === 0 && <div className="empty">{t(EMPTY_MESSAGE[nsFilter])}</div>}
+          </div>
+        ) : showPodList ? (
           <div className="pod-grid">
             {filtered.map((pod) => (
               <PodCard
@@ -234,7 +316,7 @@ function Dashboard() {
                 onClick={() => setSelectedPod(pod)}
               />
             ))}
-            {filtered.length === 0 && <div className="empty">표시할 Pod가 없습니다.</div>}
+            {filtered.length === 0 && <div className="empty">{t('app.noPods')}</div>}
           </div>
         ) : (
           <TopologyView
@@ -246,6 +328,7 @@ function Dashboard() {
             gpuUsage={gpuUsage}
             traffic={traffic}
             problemsOnly={problemsOnly}
+            searchQuery={filter}
             layoutKey={`${cluster}|${selectedNS}`}
             onHoverNamespace={setHoverNS}
             onSelectPod={setSelectedPod}
@@ -264,7 +347,9 @@ function Dashboard() {
         />
       )}
 
-      {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} onClustersChanged={reloadClusters} />}
+      {showAdmin && (
+        <AdminPage isAdmin={user.role === 'admin'} onClose={() => setShowAdmin(false)} onClustersChanged={reloadClusters} />
+      )}
     </div>
   )
 }

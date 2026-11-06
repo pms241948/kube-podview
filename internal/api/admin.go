@@ -2,13 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/pms241948/CC-K8s-podview/internal/i18n"
 	"github.com/pms241948/CC-K8s-podview/internal/store"
 )
 
@@ -51,11 +51,11 @@ func (s *Server) RegisterAdmin(mux *http.ServeMux, settings *store.Manager) {
 		req.Name = strings.TrimSpace(req.Name)
 		req.URL = strings.TrimRight(strings.TrimSpace(req.URL), "/")
 		if !validName.MatchString(req.Name) {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("클러스터 이름은 한글/영문/숫자/._- 40자 이내여야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "cluster name must be 40 characters or fewer: letters, digits, ._-", "클러스터 이름은 한글/영문/숫자/._- 40자 이내여야 합니다"))
 			return
 		}
 		if !strings.HasPrefix(req.URL, "http://") && !strings.HasPrefix(req.URL, "https://") {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("URL은 http(s)://로 시작해야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "URL must start with http(s)://", "URL은 http(s)://로 시작해야 합니다"))
 			return
 		}
 		err := settings.Update(func(st *store.Settings) error {
@@ -87,7 +87,7 @@ func (s *Server) RegisterAdmin(mux *http.ServeMux, settings *store.Manager) {
 					return nil
 				}
 			}
-			return fmt.Errorf("클러스터를 찾을 수 없습니다: %s", name)
+			return i18n.Errorf(r, "cluster not found: %s", "클러스터를 찾을 수 없습니다: %s", name)
 		})
 		if err != nil {
 			httpError(w, http.StatusNotFound, err)
@@ -117,15 +117,15 @@ func (s *Server) RegisterAdmin(mux *http.ServeMux, settings *store.Manager) {
 		}
 		req.Username = strings.TrimSpace(req.Username)
 		if !validName.MatchString(req.Username) {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("사용자명은 한글/영문/숫자/._- 40자 이내여야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "username must be 40 characters or fewer: letters, digits, ._-", "사용자명은 한글/영문/숫자/._- 40자 이내여야 합니다"))
 			return
 		}
 		if req.Role != "admin" && req.Role != "viewer" {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("role은 admin 또는 viewer여야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "role must be admin or viewer", "role은 admin 또는 viewer여야 합니다"))
 			return
 		}
 		if len(req.Password) > 0 && len(req.Password) < 8 {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("비밀번호는 8자 이상이어야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "password must be at least 8 characters", "비밀번호는 8자 이상이어야 합니다"))
 			return
 		}
 
@@ -144,7 +144,7 @@ func (s *Server) RegisterAdmin(mux *http.ServeMux, settings *store.Manager) {
 				}
 			}
 			if req.Password == "" {
-				return fmt.Errorf("신규 사용자는 비밀번호가 필요합니다")
+				return i18n.Errorf(r, "a password is required for a new user", "신규 사용자는 비밀번호가 필요합니다")
 			}
 			hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 			if err != nil {
@@ -180,11 +180,11 @@ func (s *Server) RegisterAdmin(mux *http.ServeMux, settings *store.Manager) {
 		}
 		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 		if !strings.Contains(req.Email, "@") || len(req.Email) > 254 {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("올바른 이메일 형식이 아닙니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "not a valid email address", "올바른 이메일 형식이 아닙니다"))
 			return
 		}
 		if req.Role != "admin" && req.Role != "viewer" {
-			httpError(w, http.StatusBadRequest, fmt.Errorf("role은 admin 또는 viewer여야 합니다"))
+			httpError(w, http.StatusBadRequest, i18n.Errorf(r, "role must be admin or viewer", "role은 admin 또는 viewer여야 합니다"))
 			return
 		}
 		err := settings.Update(func(st *store.Settings) error {
@@ -213,7 +213,7 @@ func (s *Server) RegisterAdmin(mux *http.ServeMux, settings *store.Manager) {
 					return nil
 				}
 			}
-			return fmt.Errorf("SSO 사용자를 찾을 수 없습니다: %s", email)
+			return i18n.Errorf(r, "SSO user not found: %s", "SSO 사용자를 찾을 수 없습니다: %s", email)
 		})
 		if err != nil {
 			httpError(w, http.StatusNotFound, err)
@@ -233,7 +233,7 @@ func (s *Server) RegisterAdmin(mux *http.ServeMux, settings *store.Manager) {
 					return nil
 				}
 			}
-			return fmt.Errorf("사용자를 찾을 수 없습니다: %s", username)
+			return i18n.Errorf(r, "user not found: %s", "사용자를 찾을 수 없습니다: %s", username)
 		})
 		if err != nil {
 			httpError(w, http.StatusNotFound, err)

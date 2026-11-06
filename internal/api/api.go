@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/pms241948/CC-K8s-podview/internal/i18n"
 	"github.com/pms241948/CC-K8s-podview/internal/k8s"
 	"github.com/pms241948/CC-K8s-podview/internal/prom"
 	"github.com/pms241948/CC-K8s-podview/internal/store"
@@ -107,7 +108,7 @@ func (s *Server) handlePods(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		httpError(w, http.StatusInternalServerError, fmt.Errorf("스트리밍을 지원하지 않는 응답 writer"))
+		httpError(w, http.StatusInternalServerError, fmt.Errorf("response writer does not support streaming"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -152,7 +153,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 	stream, err := s.clients.Core.CoreV1().Pods(ns).GetLogs(pod, opts).Stream(r.Context())
 	if err != nil {
-		httpError(w, http.StatusBadGateway, fmt.Errorf("로그 조회 실패: %w", err))
+		httpError(w, http.StatusBadGateway, i18n.Errorf(r, "couldn't fetch logs: %w", "로그 조회 실패: %w", err))
 		return
 	}
 	defer stream.Close()

@@ -8,7 +8,8 @@ A web service that **visualizes Kubernetes Pod status per namespace in real time
 
 - **Per-namespace Pod status** — Running / Pending / CrashLoopBackOff and more, color-coded
 - **Problem-Pod filter & recency emphasis** — click "problem N" to show only problem Pods (sorted newest-first). Cards show a recency badge; in the topology view, Pods that turned abnormal within 24h get a pulsing halo so they stand out from long-standing (chronic) ones
-- **Topology view** — Ingress→Service→Pod (grouped by node) hierarchy, animated, with a CPU-usage ring on each Pod (toggles with card view)
+- **Namespace summary cards → topology** — the all-namespaces screen shows one summary card per namespace (per-status count chips, the latest problem Pods by name, CPU/memory totals); click a card to open that namespace's topology, or a problem Pod to open its details
+- **Topology view** — Ingress→Service→Pod (grouped by node) hierarchy, animated, with a CPU-usage ring on each Pod
 - **Adjustable topology layout** — drag node boxes to move them, drag the handle to resize (Pods auto-reflow). Layout is saved in the browser and can be reset
 - **Measured traffic (optional)** — with Prometheus, flow-animation **dot speed and count (1–4) scale with real traffic**, and idle paths fade out. Pod↔Pod measured-flow curves with rx/tx tooltips. CNI-agnostic design (see below)
 - **Live updates** — K8s Watch (informers) → SSE pushes changes to the screen instantly
@@ -20,6 +21,7 @@ A web service that **visualizes Kubernetes Pod status per namespace in real time
 - **Multi-cluster gateway** — register podview instances in other (air-gapped) networks and switch between clusters from one web UI
 - **Admin settings tab** — manage clusters (name·URL·token), local accounts & SSO user roles (admin/viewer), and AI-analysis endpoints from the web
 - **AI analysis (optional)** — register an in-house LLM endpoint to generate a failure-analysis report from a Pod's status/events/logs
+- **UI language (English / 한국어)** — English by default. Switch it in Settings (⚙) → General or on the sign-in page; saved in the browser. Also applies to server error messages and AI analysis reports
 
 ## UI Overview
 
@@ -27,18 +29,18 @@ A web service that **visualizes Kubernetes Pod status per namespace in real time
 |---|---|
 | Login | podview's own ID/PW form + an **SSO (Keycloak) login** button below (only configured methods appear) |
 | Sidebar | Namespace list + live search + red problem-Pod-count badge (15s refresh). Collapse with « to widen the monitoring area; drag the right edge to resize (160–480px) — all persisted |
-| Card view | Per-namespace Pod card grid — status color, Ready/restarts/Age, CPU·memory, GPU badge·usage, problem-recency badge, name/status search |
-| Topology view | Ingress→Service→Node→**namespace box**→Pod hierarchy. Routing-flow animation (Not Ready = red dashed), CPU ring (blue·relative) · GPU ring (green·absolute %), pulsing halo on problems within 24h. Hovering a node / namespace box / Pod / flow line highlights the related elements and the sidebar namespace. Node boxes drag-move & resize (Pods auto-reflow, layout saved/reset). With Prometheus, dot speed·count reflect measured traffic |
+| All namespaces (overview) | Namespace summary card grid — per-status count chips (only non-zero, error→pending→healthy→completed), up to 2 most recent problem Pods (name · status · recency, then "+N more"), CPU·memory totals, GPU allocation. Namespaces with problems sort to the top, newest first. Clicking a card opens that namespace's topology; clicking a problem Pod opens its detail panel directly. A filter bar picks **All / With problems / Last 24h** (excludes namespaces with only chronic problems), plus "Hide empty namespaces" (choice saved in the browser). "problem N" or a search shows matching Pod cards across the cluster (status color, Ready/restarts/Age, CPU·memory, GPU, recency badge) |
+| Topology view (namespace selected) | Ingress→Service→Node→**namespace box**→Pod hierarchy. Routing-flow animation (Not Ready = red dashed), CPU ring (blue·relative) · GPU ring (green·absolute %), pulsing halo on problems within 24h. Hovering a node / namespace box / Pod / flow line highlights the related elements and the sidebar namespace. Node boxes drag-move & resize (Pods auto-reflow, layout saved/reset). With Prometheus, dot speed·count reflect measured traffic. Pods not matching the search are dimmed |
 | Pod detail panel | Info / Env (env vars·ports·volumes) / Logs (live follow) / Events (K8s events·conditions) / AI analysis (selectable model) tabs |
-| Admin settings (⚙) | Add/remove clusters, manage local accounts, assign SSO user roles, manage AI models (add/edit/delete/default) — admin role only |
-| Top bar | Cluster selector dropdown, "problem N" filter toggle, card↔topology switch, live connection status, logout |
+| Settings (⚙) | Everyone: General (UI language). Admin role only: add/remove clusters, manage local accounts, assign SSO user roles, manage AI models (add/edit/delete/default) |
+| Top bar | Cluster selector dropdown, "problem N" filter toggle, Pod name/status search, live connection status, logout |
 
 ## How a Problem Pod Is Determined
 
 - **Problem Pod**: any Pod that is not (Running + all-Ready) and not a clean termination (Succeeded/Completed)
 - **Onset time**: when the Ready condition flipped to False. Exception: for Pods with ≥5 restarts (crash loops), Ready is refreshed each cycle and always looks "just now", so the Pod start time is used instead — long-standing crash loops are then correctly classified as chronic
 - **Classification & emphasis**: within 1h (fresh — urgent) / within 24h (recent) / chronic (>24h, knowingly left alone)
-  - Card view: recency badge — red (fresh) / amber (recent) / grey (chronic)
+  - Cards: recency badge on namespace and Pod cards — red (fresh) / amber (recent) / grey (chronic)
   - Topology view: fresh·recent get a pulsing halo ring (fresh pulses faster); chronic has no halo and is dimmed → new incidents stand out over neglected ones
 
 ## Architecture
@@ -171,7 +173,7 @@ You log in only once at the gateway. Web-changed settings are stored in the `pod
 
 ## AI Analysis (optional)
 
-Register an in-house LLM endpoint under Admin settings (⚙) → **AI analysis** to enable the **AI analysis** tab in Pod detail. You can register **multiple models** (add/edit/delete) and mark one as **default**; the tab's dropdown lets you pick which model to run, so you can compare results. On run, the backend collects the Pod's status·containers·conditions·K8s events·recent logs (80 lines per container, including the previous container's log on crash), sends them to the model, and shows a report (status summary · cause analysis · recommended actions). **No sensitive data such as env-var values is sent.**
+Register an in-house LLM endpoint under Admin settings (⚙) → **AI analysis** to enable the **AI analysis** tab in Pod detail. You can register **multiple models** (add/edit/delete) and mark one as **default**; the tab's dropdown lets you pick which model to run, so you can compare results. On run, the backend collects the Pod's status·containers·conditions·K8s events·recent logs (80 lines per container, including the previous container's log on crash), sends them to the model, and shows a report (status summary · cause analysis · recommended actions) in the current UI language. **No sensitive data such as env-var values is sent.**
 
 | Setting | Description |
 |---|---|
